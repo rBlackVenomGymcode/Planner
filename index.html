@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Itinerario di Viaggio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root{
+    --ink:#16283D;
+    --ink-soft:#2A415C;
+    --parchment:#F2EEE3;
+    --parchment-dim:#E7E1D2;
+    --brass:#B8934A;
+    --brass-dim:#D9C293;
+    --stamp:#B23A2E;
+    --slate:#5B6B7A;
+    --cloud:#FFFFFF;
+    --line: rgba(22,40,61,0.14);
+    --ok:#3E7A52;
+    --shadow: 0 10px 30px rgba(22,40,61,0.10), 0 2px 6px rgba(22,40,61,0.08);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--parchment);
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(22,40,61,0.06) 1px, transparent 0);
+    background-size: 18px 18px;
+    color:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'IBM Plex Mono', monospace;}
+  .display{font-family:'Space Grotesk', sans-serif;}
+  button{font-family:inherit; cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+
+  /* ---------- App shell ---------- */
+  #app{max-width:760px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column;}
+
+  .topbar{
+    position:sticky; top:0; z-index:40;
+    background:var(--ink);
+    color:var(--parchment);
+    padding:14px 16px;
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    box-shadow:var(--shadow);
+  }
+  .brand{display:flex; align-items:center; gap:10px; min-width:0;}
+  .brand-mark{
+    width:30px; height:30px; flex:none; border-radius:50%;
+    border:1.5px solid var(--brass); display:flex; align-items:center; justify-content:center;
+  }
+  .brand-mark svg{width:16px; height:16px; stroke:var(--brass);}
+  .brand-name{
+    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:16px;
+    letter-spacing:0.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .brand-name-input{
+    background:transparent; border:none; border-bottom:1px dashed var(--brass);
+    color:var(--parchment); font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:16px;
+    padding:2px 0; width:100%; outline:none;
+  }
+  .actions{display:flex; gap:8px; flex:none;}
+  .btn{
+    border:1px solid transparent; border-radius:7px; padding:8px 13px;
+    font-size:13px; font-weight:600; letter-spacing:0.2px; transition:transform .12s ease, background .15s ease;
+    display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+  }
+  .btn:active{transform:translateY(1px);}
+  .btn-ghost{background:transparent; border-color:rgba(242,238,227,0.35); color:var(--parchment);}
+  .btn-ghost:hover{background:rgba(242,238,227,0.1);}
+  .btn-brass{background:var(--brass); color:var(--ink);}
+  .btn-brass:hover{background:var(--brass-dim);}
+  .btn-edit-on{background:var(--stamp); color:var(--parchment);}
+  .btn svg{width:14px; height:14px;}
+
+  /* ---------- Day scroller ---------- */
+  .day-scroller{
+    display:flex; gap:8px; padding:14px 16px 10px; overflow-x:auto;
+    background:var(--parchment); position:sticky; top:57px; z-index:30;
+    border-bottom:1px solid var(--line);
+  }
+  .day-scroller::-webkit-scrollbar{height:0;}
+  .day-tab{
+    flex:none; background:var(--cloud); border:1px solid var(--line); border-radius:10px;
+    padding:8px 12px; min-width:64px; text-align:center; position:relative;
+  }
+  .day-tab .num{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:19px; line-height:1;}
+  .day-tab .wk{font-size:10px; text-transform:uppercase; letter-spacing:0.6px; color:var(--slate); margin-top:3px;}
+  .day-tab.active{background:var(--ink); border-color:var(--ink);}
+  .day-tab.active .num, .day-tab.active .wk{color:var(--parchment);}
+  .day-tab.active .wk{color:var(--brass-dim);}
+  .day-tab-add{
+    flex:none; border:1.5px dashed var(--brass); background:transparent; border-radius:10px;
+    min-width:64px; display:flex; align-items:center; justify-content:center; color:var(--brass);
+  }
+  .day-tab-add svg{width:18px; height:18px;}
+
+  main{flex:1; padding:16px; padding-bottom:60px;}
+
+  /* ---------- Empty states ---------- */
+  .empty{
+    text-align:center; padding:52px 20px; color:var(--slate);
+  }
+  .empty .display{font-size:19px; color:var(--ink); margin-bottom:6px;}
+  .empty p{font-size:14px; line-height:1.5; max-width:320px; margin:0 auto 18px;}
+
+  /* ---------- Boarding-pass day card ---------- */
+  .day-pass{
+    display:flex; background:var(--cloud); border-radius:14px; overflow:hidden;
+    box-shadow:var(--shadow); margin-bottom:22px; position:relative;
+  }
+  .day-pass-stub{
+    flex:none; width:78px; background:var(--ink); color:var(--parchment);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:14px 6px; position:relative; gap:2px;
+  }
+  .day-pass-stub .dow{font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--brass-dim);}
+  .day-pass-stub .dom{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:30px; line-height:1;}
+  .day-pass-stub .mon{font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--parchment); opacity:.75;}
+  .day-pass-perf{
+    flex:none; width:0; border-left:2px dashed rgba(22,40,61,0.25); position:relative; margin:10px 0;
+  }
+  .day-pass-perf::before, .day-pass-perf::after{
+    content:''; position:absolute; left:-8px; width:16px; height:16px; border-radius:50%;
+    background:var(--parchment);
+  }
+  .day-pass-perf::before{top:-10px;}
+  .day-pass-perf::after{bottom:-10px;}
+  .day-pass-body{flex:1; min-width:0; padding:8px 4px 8px 0;}
+  .day-pass-head{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:6px 14px 10px; border-bottom:1px solid var(--line);
+  }
+  .day-pass-head .lbl{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:15px;}
+  .day-pass-head .seq{font-size:11px; color:var(--slate); font-family:'IBM Plex Mono',monospace; flex:none;}
+
+  /* ---------- Event row ---------- */
+  .ev{border-bottom:1px solid var(--line);}
+  .ev:last-child{border-bottom:none;}
+  .ev-row{
+    display:flex; align-items:center; gap:12px; padding:12px 14px; cursor:pointer;
+  }
+  .ev-time{font-family:'IBM Plex Mono',monospace; font-weight:600; color:var(--brass); font-size:14px; flex:none; width:46px;}
+  .ev-title{flex:1; font-weight:600; font-size:14.5px; min-width:0;}
+  .ev-chev{flex:none; width:16px; height:16px; color:var(--slate); transition:transform .18s ease;}
+  .ev.open .ev-chev{transform:rotate(90deg);}
+  .ev-edit-icons{flex:none; display:flex; gap:4px;}
+  .icon-btn{
+    border:none; background:transparent; padding:4px; border-radius:6px; color:var(--slate);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .icon-btn:hover{background:var(--parchment-dim); color:var(--ink);}
+  .icon-btn svg{width:15px; height:15px;}
+  .icon-btn.danger:hover{color:var(--stamp);}
+
+  .ev-detail{
+    max-height:0; overflow:hidden; transition:max-height .22s ease;
+    padding:0 14px; background:var(--parchment); background-image:none;
+  }
+  .ev.open .ev-detail{max-height:400px; padding:12px 14px 16px;}
+  .ev-notes{font-size:13.5px; line-height:1.55; color:var(--ink-soft); margin:0 0 10px;}
+  .ev-meta{display:flex; flex-wrap:wrap; gap:8px; align-items:center;}
+  .badge{
+    font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; letter-spacing:0.2px;
+    display:inline-flex; align-items:center; gap:4px;
+  }
+  .badge-ok{background:rgba(62,122,82,0.14); color:var(--ok);}
+  .badge-warn{background:rgba(184,147,74,0.18); color:#8a6a1f;}
+  .badge-none{background:rgba(91,107,122,0.14); color:var(--slate);}
+  .transport{
+    display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-soft);
+    background:var(--cloud); border:1px solid var(--line); border-radius:8px; padding:8px 10px; width:100%; margin-top:8px;
+  }
+  .transport svg{width:16px; height:16px; flex:none; color:var(--brass);}
+  .transport .route{font-weight:600;}
+  .stops{font-size:11.5px; color:var(--slate); margin-top:2px;}
+
+  /* ---- Vertical transport visual (Google-Maps style) ---- */
+  .transport-v{margin-top:8px; background:var(--cloud); border:1px solid var(--line); border-radius:9px; padding:12px 14px 10px;}
+  .tv-mode{display:flex; align-items:center; gap:8px; font-weight:600; font-size:13px; color:var(--ink); margin-bottom:12px;}
+  .tv-mode svg{width:16px; height:16px; color:var(--brass); flex:none;}
+  .line-badge{
+    background:var(--ink); color:var(--parchment); font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+    font-weight:700; padding:2px 7px; border-radius:5px; letter-spacing:0.3px; margin-left:2px;
+  }
+  .tv-track{position:relative; padding-left:22px;}
+  .tv-track::before{
+    content:''; position:absolute; left:5px; top:6px; bottom:6px; width:2px;
+    background-image: linear-gradient(var(--brass) 60%, transparent 0%);
+    background-position:left; background-size:2px 8px; background-repeat:repeat-y;
+  }
+  .tv-point{position:relative; padding:1px 0 14px 0;}
+  .tv-point:last-child{padding-bottom:0;}
+  .tv-dot{
+    position:absolute; left:-22px; top:1px; width:12px; height:12px; border-radius:50%;
+    border:2.5px solid var(--ink); background:var(--cloud); box-sizing:border-box;
+  }
+  .tv-dot.end{border-color:var(--stamp); background:var(--stamp);}
+  .tv-name{font-weight:600; font-size:13.5px; color:var(--ink); line-height:1.3;}
+  .tv-tag{font-size:10px; color:var(--slate); text-transform:uppercase; letter-spacing:0.5px; margin-top:1px;}
+  .tv-stop{position:relative; padding:0 0 10px 0; display:flex; align-items:center;}
+  .tv-stop .tv-tick{
+    position:absolute; left:-19px; top:50%; transform:translateY(-50%);
+    width:6px; height:6px; border-radius:50%; background:var(--brass-dim); border:1.5px solid var(--brass);
+  }
+  .tv-stop-name{font-size:12px; color:var(--slate);}
+  .tv-maps-link{
+    display:inline-flex; align-items:center; gap:6px; margin-top:10px; padding-top:10px;
+    border-top:1px solid var(--line); font-size:12px; font-weight:600; color:var(--brass);
+    text-decoration:none;
+  }
+  .tv-maps-link:hover{color:#8a6a1f;}
+
+  /* ---- Live timeline rail + pulsing "now" dot ---- */
+  .events-wrap{position:relative;}
+  .timeline-rail{
+    position:absolute; left:36px; width:2px; z-index:1; pointer-events:none;
+    background-image: linear-gradient(var(--line) 60%, transparent 0%);
+    background-position:left; background-size:2px 6px; background-repeat:repeat-y;
+    display:none;
+  }
+  .timeline-dot{position:absolute; left:31px; z-index:6; display:none; align-items:center; gap:6px; pointer-events:none;}
+  .timeline-dot .core{position:relative; width:11px; height:11px; border-radius:50%; background:var(--stamp); box-shadow:0 0 0 3px var(--parchment);}
+  .timeline-dot .core::after{
+    content:''; position:absolute; inset:-6px; border-radius:50%; border:2px solid var(--stamp);
+    animation:tpulse 1.8s ease-out infinite;
+  }
+  .timeline-dot .time-chip{
+    background:var(--ink); color:var(--parchment); font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+    font-weight:600; padding:2px 7px; border-radius:5px; white-space:nowrap;
+  }
+  @keyframes tpulse{0%{transform:scale(0.6); opacity:0.9;} 100%{transform:scale(1.9); opacity:0;}}
+
+  .add-event-btn{
+    display:flex; align-items:center; justify-content:center; gap:8px; width:calc(100% - 14px); margin:10px 0 4px 14px;
+    padding:11px; border:1.5px dashed var(--brass); border-radius:9px; background:transparent; color:var(--ink-soft);
+    font-weight:600; font-size:13.5px;
+  }
+  .add-event-btn:hover{background:rgba(184,147,74,0.08);}
+  .add-event-btn svg{width:15px; height:15px; color:var(--brass);}
+
+  .day-footer{display:flex; justify-content:flex-end; padding:2px 14px 0;}
+  .day-delete{
+    font-size:12px; color:var(--stamp); background:transparent; border:none; font-weight:600;
+    display:flex; align-items:center; gap:4px; padding:6px 2px;
+  }
+
+  .confirm-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px;
+    background:rgba(178,58,46,0.08);
+  }
+  .confirm-row span{font-size:13px; color:var(--ink); font-weight:500;}
+  .confirm-actions{display:flex; gap:6px;}
+  .confirm-actions button{font-size:12px; font-weight:700; padding:5px 10px; border-radius:6px; border:none;}
+  .confirm-yes{background:var(--stamp); color:#fff;}
+  .confirm-no{background:var(--parchment-dim); color:var(--ink);}
+
+  /* ---------- Modal ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(22,40,61,0.45); backdrop-filter:blur(2px);
+    display:flex; align-items:flex-end; justify-content:center; z-index:100; animation:fadeIn .15s ease;
+  }
+  @media (min-width:640px){ .modal-overlay{align-items:center;} }
+  @keyframes fadeIn{from{opacity:0;} to{opacity:1;}}
+  .modal{
+    background:var(--cloud); width:100%; max-width:480px; max-height:90vh; overflow-y:auto;
+    border-radius:16px 16px 0 0; padding:22px 20px 26px; box-shadow:0 -8px 30px rgba(0,0,0,0.2);
+  }
+  @media (min-width:640px){ .modal{border-radius:16px;} }
+  .modal h3{font-family:'Space Grotesk',sans-serif; margin:0 0 16px; font-size:18px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12px; font-weight:600; color:var(--slate); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.4px;}
+  .field input, .field select, .field textarea{
+    width:100%; border:1px solid var(--line); border-radius:8px; padding:9px 11px; font-size:14px;
+    background:var(--parchment); color:var(--ink); outline:none;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus{border-color:var(--brass);}
+  .field textarea{resize:vertical; min-height:60px;}
+  .field-row{display:flex; gap:10px;}
+  .field-row .field{flex:1;}
+  .modal-actions{display:flex; gap:10px; margin-top:18px;}
+  .modal-actions .btn{flex:1; justify-content:center; padding:11px;}
+  .btn-cancel{background:var(--parchment-dim); color:var(--ink);}
+
+  /* ---------- Print / PDF pages (offscreen) ---------- */
+  #printRoot{position:absolute; left:-9999px; top:0;}
+  .print-page{
+    width:210mm; min-height:297mm; background:#fff; padding:14mm 12mm; font-family:'IBM Plex Sans',sans-serif; color:#16283D;
+  }
+  .print-head{display:flex; align-items:baseline; justify-content:space-between; border-bottom:2px solid #16283D; padding-bottom:8mm; margin-bottom:8mm;}
+  .print-head .trip{font-family:'Space Grotesk',sans-serif; font-size:13px; color:#5B6B7A; letter-spacing:0.5px; text-transform:uppercase;}
+  .print-head .day{font-family:'Space Grotesk',sans-serif; font-size:26px; font-weight:700;}
+  .print-ev{border:1px solid #D9D2BE; border-radius:8px; margin-bottom:6mm; padding:5mm 6mm; page-break-inside:avoid;}
+  .print-ev-top{display:flex; gap:10px; align-items:baseline; margin-bottom:3mm;}
+  .print-ev-time{font-family:'IBM Plex Mono',monospace; font-weight:700; color:#B8934A; font-size:15px;}
+  .print-ev-title{font-weight:700; font-size:15px;}
+  .print-ev-notes{font-size:12px; line-height:1.6; color:#2A415C; margin:0 0 3mm;}
+  .print-ev-meta{display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:11px;}
+  .print-empty{color:#5B6B7A; font-size:13px; font-style:italic;}
+
+  @media (max-width:380px){
+    .day-pass-stub{width:64px;}
+    .day-pass-stub .dom{font-size:24px;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand" id="brandWrap">
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></svg></div>
+      <span class="brand-name display" id="brandName"></span>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" id="backupExportBtn" title="Salva un file di backup dei dati">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5-5 5 5M12 5v12"/></svg>
+      </button>
+      <button class="btn btn-ghost" id="backupImportBtn" title="Ripristina i dati da un file di backup">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 9l-5 5-5-5M12 14V2"/></svg>
+      </button>
+      <input type="file" id="backupFileInput" accept="application/json" style="display:none;">
+      <button class="btn btn-ghost" id="exportBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 10l5 5 5-5M5 21h14"/></svg>
+        <span id="exportLabel">Esporta PDF</span>
+      </button>
+      <button class="btn btn-ghost" id="editToggle">Modifica</button>
+    </div>
+  </header>
+
+  <nav class="day-scroller" id="dayScroller"></nav>
+  <main id="dayView"></main>
+</div>
+
+<div id="modalRoot"></div>
+<div id="printRoot"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- State ---------------- */
+  var state = {
+    tripName: "Nuovo Viaggio",
+    editMode: false,
+    activeDayIndex: 0,
+    days: []
+  };
+  var openEventIds = new Set();
+  var confirmDeleteDayId = null;
+
+  function uid(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+  /* ---------------- Persistence ---------------- */
+  var STORAGE_KEY = 'itinerary-state';
+
+  function saveState(){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({tripName: state.tripName, days: state.days}));
+    }catch(e){ console.error('Storage error', e); }
+  }
+
+  function loadState(cb){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if(raw){
+        var parsed = JSON.parse(raw);
+        state.tripName = parsed.tripName || state.tripName;
+        state.days = Array.isArray(parsed.days) ? parsed.days : [];
+      } else {
+        state.days = [];
+      }
+    }catch(e){
+      state.days = [];
+    }
+    cb();
+  }
+
+  /* ---------------- Backup JSON (export/import) ---------------- */
+  function exportBackup(){
+    var data = JSON.stringify({tripName: state.tripName, days: state.days}, null, 2);
+    var blob = new Blob([data], {type:'application/json'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = (state.tripName||'itinerario').replace(/[^a-z0-9]+/gi,'_') + '_backup.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function importBackup(file){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        var parsed = JSON.parse(e.target.result);
+        if(!parsed || !Array.isArray(parsed.days)) throw new Error('Formato non valido');
+        if(!confirm('Importare questo backup sostituirà i dati attuali. Continuare?')) return;
+        state.tripName = parsed.tripName || state.tripName;
+        state.days = parsed.days;
+        state.activeDayIndex = 0;
+        saveState();
+        renderAll();
+      }catch(err){
+        alert('Impossibile leggere il file di backup: formato non valido.');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  /* ---------------- Helpers ---------------- */
+  function pad(n){ return n<10 ? '0'+n : ''+n; }
+
+  function todayISO(){
+    var d = new Date();
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  }
+
+  function timeToMinutes(t){
+    var parts = (t||'0:0').split(':');
+    return (parseInt(parts[0],10)||0)*60 + (parseInt(parts[1],10)||0);
+  }
+
+  function positionTimelineDot(day){
+    var wrap = document.getElementById('eventsWrap');
+    var rail = document.getElementById('timelineRail');
+    var dot = document.getElementById('timelineDot');
+    var chip = document.getElementById('timelineChip');
+    if(!wrap || !rail || !dot) return;
+
+    if(!day || day.date !== todayISO()){
+      rail.style.display = 'none';
+      dot.style.display = 'none';
+      return;
+    }
+
+    var rows = wrap.querySelectorAll('.ev[data-time]');
+    if(rows.length === 0){
+      rail.style.display = 'none';
+      dot.style.display = 'none';
+      return;
+    }
+
+    var points = [];
+    rows.forEach(function(row){
+      var rowEl = row.querySelector('.ev-row');
+      var centerY = row.offsetTop + (rowEl ? rowEl.offsetHeight/2 : 0);
+      points.push({ minutes: timeToMinutes(row.getAttribute('data-time')), y: centerY });
+    });
+
+    var now = new Date();
+    var nowMinutes = now.getHours()*60 + now.getMinutes();
+    var y;
+    if(points.length === 1){
+      y = points[0].y;
+    } else if(nowMinutes <= points[0].minutes){
+      y = points[0].y;
+    } else if(nowMinutes >= points[points.length-1].minutes){
+      y = points[points.length-1].y;
+    } else {
+      y = points[points.length-1].y;
+      for(var i=0;i<points.length-1;i++){
+        if(nowMinutes >= points[i].minutes && nowMinutes <= points[i+1].minutes){
+          var span = points[i+1].minutes - points[i].minutes;
+          var frac = span > 0 ? (nowMinutes - points[i].minutes)/span : 0;
+          y = points[i].y + frac*(points[i+1].y - points[i].y);
+          break;
+        }
+      }
+    }
+
+    if(points.length > 1){
+      rail.style.display = 'block';
+      rail.style.top = points[0].y + 'px';
+      rail.style.height = Math.max(0, points[points.length-1].y - points[0].y) + 'px';
+    } else {
+      rail.style.display = 'none';
+    }
+    dot.style.display = 'flex';
+    dot.style.top = y + 'px';
+    dot.style.transform = 'translateY(-50%)';
+    if(chip) chip.textContent = pad(now.getHours())+':'+pad(now.getMinutes());
+  }
+
+  function dayParts(dateStr){
+    var d = new Date(dateStr + 'T12:00:00');
+    var wk = d.toLocaleDateString('it-IT', {weekday:'short'}).replace('.','');
+    var full = d.toLocaleDateString('it-IT', {weekday:'long'});
+    var mon = d.toLocaleDateString('it-IT', {month:'short'}).replace('.','');
+    wk = wk.charAt(0).toUpperCase() + wk.slice(1);
+    full = full.charAt(0).toUpperCase() + full.slice(1);
+    mon = mon.charAt(0).toUpperCase() + mon.slice(1);
+    return { dow: wk, dom: d.getDate(), mon: mon, fullLabel: full + ' ' + d.getDate() + ' ' + d.toLocaleDateString('it-IT',{month:'long'}) };
+  }
+
+  function dayLabel(day){
+    if(day.label) return day.label;
+    return dayParts(day.date).fullLabel;
+  }
+
+  function sortEvents(day){
+    day.events.sort(function(a,b){ return a.time.localeCompare(b.time); });
+  }
+
+  function ticketBadge(t){
+    if(t === 'in_possesso') return '<span class="badge badge-ok"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>Biglietto in possesso</span>';
+    if(t === 'si') return '<span class="badge badge-warn">Biglietto da acquistare</span>';
+    return '<span class="badge badge-none">Nessun biglietto necessario</span>';
+  }
+
+  var TRANSPORT_ICONS = {
+    'Bus':'<path d="M8 6v6M16 6v6M2 12h20M4 12v5a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-1h10v1a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-5M6 6h12a2 2 0 0 1 2 2v4H4V8a2 2 0 0 1 2-2Z"/><circle cx="7.5" cy="17.5" r="0" /><path d="M7 17h.01M17 17h.01"/>',
+    'Metro':'<rect x="4" y="3" width="16" height="14" rx="4"/><path d="M4 11h16M8 17l-2 4M16 17l2 4M9 7h6"/>',
+    'Treno':'<rect x="4" y="3" width="16" height="14" rx="4"/><path d="M4 11h16M8 17l-2 4M16 17l2 4M9 7h6"/>',
+    'A piedi':'<circle cx="13" cy="4" r="2"/><path d="m9 20 2-6-3-1 2-5 3 2 2-2 3 1-1 4-3 1v2l3 4"/>',
+    'Auto':'<path d="M5 17h14M5 17a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm14 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM5 17l1.5-6h11L19 17M6.5 11h11M4 13h1M19 13h1"/>',
+    'Aereo':'<path d="m17.8 19.2-1.6-4.8L5 12l1-1.5 5.6 1L15 6l1.5-.5.5 6 4.6 1.6L21 15l-4.5-.6Z"/>',
+    'Traghetto':'<path d="M3 18c1.5 1 3.5 1 5 0s3.5-1 5 0 3.5 1 5 0M4 14l1-6h6l1 6M9 8V4h3l2 4"/>',
+    'Nessuno':'<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>'
+  };
+  function transportIcon(mode){
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + (TRANSPORT_ICONS[mode] || TRANSPORT_ICONS['Nessuno']) + '</svg>';
+  }
+
+  function transportVisualHTML(ev, includeMapsLink){
+    if(!ev.mode || ev.mode === 'Nessuno') return '';
+    var stopsArr = ev.stops ? ev.stops.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
+    var stopsHtml = stopsArr.map(function(s){
+      return '<div class="tv-stop"><span class="tv-tick"></span><span class="tv-stop-name">'+esc(s)+'</span></div>';
+    }).join('');
+    var lineBadge = ev.line ? '<span class="line-badge">'+esc(ev.line)+'</span>' : '';
+    var mapsLinkHtml = '';
+    if(includeMapsLink){
+      var mapsUrl = 'https://www.google.com/maps/dir/?api=1&travelmode=transit' +
+        (ev.from ? '&origin=' + encodeURIComponent(ev.from) : '') +
+        (ev.to ? '&destination=' + encodeURIComponent(ev.to) : '');
+      mapsLinkHtml = '<a class="tv-maps-link" href="'+mapsUrl+'" target="_blank" rel="noopener">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13 6-3m-6 3V7m6 10 5.447 2.724A1 1 0 0 0 21 18.618V7.618a1 1 0 0 0-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>' +
+        'Vedi su Google Maps' +
+      '</a>';
+    }
+    return '<div class="transport-v">' +
+      '<div class="tv-mode">' + transportIcon(ev.mode) + '<span>'+esc(ev.mode)+'</span>' + lineBadge + '</div>' +
+      '<div class="tv-track">' +
+        '<div class="tv-point"><span class="tv-dot"></span><div class="tv-label"><div class="tv-name">'+esc(ev.from||'Partenza')+'</div><div class="tv-tag">Partenza</div></div></div>' +
+        stopsHtml +
+        '<div class="tv-point"><span class="tv-dot end"></span><div class="tv-label"><div class="tv-name">'+esc(ev.to||'Arrivo')+'</div><div class="tv-tag">Arrivo</div></div></div>' +
+      '</div>' +
+      mapsLinkHtml +
+    '</div>';
+  }
+
+  function esc(s){
+    if(!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  /* ---------------- Render: day scroller ---------------- */
+  function renderScroller(){
+    var el = document.getElementById('dayScroller');
+    var html = '';
+    state.days.forEach(function(day, i){
+      var p = dayParts(day.date);
+      html += '<button class="day-tab' + (i===state.activeDayIndex ? ' active':'') + '" data-idx="'+i+'">' +
+        '<div class="num display">'+p.dom+'</div><div class="wk">'+p.dow+'</div></button>';
+    });
+    if(state.editMode){
+      html += '<button class="day-tab-add" id="addDayBtn" title="Crea nuova giornata">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>';
+    }
+    el.innerHTML = html;
+    el.querySelectorAll('.day-tab[data-idx]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        state.activeDayIndex = parseInt(btn.getAttribute('data-idx'),10);
+        renderAll();
+      });
+    });
+    var addBtn = document.getElementById('addDayBtn');
+    if(addBtn) addBtn.addEventListener('click', function(){ openDayModal(); });
+  }
+
+  /* ---------------- Render: main day view ---------------- */
+  function renderDayView(){
+    var main = document.getElementById('dayView');
+
+    if(state.days.length === 0){
+      main.innerHTML =
+        '<div class="empty">' +
+          '<div class="display">Il tuo itinerario è vuoto</div>' +
+          '<p>Crea la prima giornata per iniziare a pianificare il viaggio, tappa dopo tappa.</p>' +
+          (state.editMode ? '<button class="btn btn-brass" id="emptyAddDay">+ Crea Giornata</button>' : '<button class="btn btn-brass" id="emptyEditOn">Attiva Modifica</button>') +
+        '</div>';
+      var b1 = document.getElementById('emptyAddDay'); if(b1) b1.addEventListener('click', function(){ openDayModal(); });
+      var b2 = document.getElementById('emptyEditOn'); if(b2) b2.addEventListener('click', toggleEdit);
+      return;
+    }
+
+    var day = state.days[state.activeDayIndex];
+    if(!day){ state.activeDayIndex = 0; day = state.days[0]; }
+    var p = dayParts(day.date);
+    sortEvents(day);
+
+    var eventsHtml = '';
+    if(day.events.length === 0){
+      eventsHtml = '<div class="empty" style="padding:34px 16px;">' +
+        '<p style="margin-bottom:14px;">Nessun evento in programma per questa giornata.</p>' +
+        '</div>';
+    } else {
+      day.events.forEach(function(ev){
+        var open = openEventIds.has(ev.id);
+        eventsHtml += '<div class="ev' + (open?' open':'') + '" data-ev="'+ev.id+'" data-time="'+esc(ev.time)+'">' +
+          '<div class="ev-row" data-toggle="'+ev.id+'">' +
+            '<span class="ev-time mono">'+esc(ev.time)+'</span>' +
+            '<span class="ev-title">'+esc(ev.title)+'</span>' +
+            (state.editMode ?
+              '<span class="ev-edit-icons">' +
+                '<button class="icon-btn" data-edit-ev="'+ev.id+'" title="Modifica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>' +
+                '<button class="icon-btn danger" data-del-ev="'+ev.id+'" title="Elimina"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg></button>' +
+              '</span>'
+              : '<svg class="ev-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>') +
+          '</div>' +
+          '<div class="ev-detail">' +
+            (ev.notes ? '<p class="ev-notes">'+esc(ev.notes)+'</p>' : '') +
+            '<div class="ev-meta">' + ticketBadge(ev.ticket) + '</div>' +
+            transportVisualHTML(ev, true) +
+          '</div>' +
+        '</div>';
+      });
+    }
+
+    var addBtnHtml = state.editMode ?
+      '<button class="add-event-btn" id="addEventBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Aggiungi Evento</button>' : '';
+
+    var dayFooter = '';
+    if(state.editMode){
+      if(confirmDeleteDayId === day.id){
+        dayFooter = '<div class="confirm-row"><span>Eliminare l’intera giornata e i suoi eventi?</span>' +
+          '<div class="confirm-actions"><button class="confirm-yes" id="confirmDelYes">Elimina</button><button class="confirm-no" id="confirmDelNo">Annulla</button></div></div>';
+      } else {
+        dayFooter = '<div class="day-footer"><button class="day-delete" id="delDayBtn">' +
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>Elimina giornata</button></div>';
+      }
+    }
+
+    main.innerHTML =
+      '<div class="day-pass">' +
+        '<div class="day-pass-stub"><div class="dow">'+p.dow+'</div><div class="dom display">'+p.dom+'</div><div class="mon">'+p.mon+'</div></div>' +
+        '<div class="day-pass-perf"></div>' +
+        '<div class="day-pass-body">' +
+          '<div class="day-pass-head"><span class="lbl">'+esc(dayLabel(day))+'</span><span class="seq">GIORNO '+(state.activeDayIndex+1)+'/'+state.days.length+'</span></div>' +
+          '<div class="events-wrap" id="eventsWrap">' +
+            '<div class="timeline-rail" id="timelineRail"></div>' +
+            '<div class="timeline-dot" id="timelineDot"><span class="core"></span><span class="time-chip" id="timelineChip"></span></div>' +
+            eventsHtml +
+          '</div>' +
+          addBtnHtml +
+          dayFooter +
+        '</div>' +
+      '</div>';
+
+    // wire events
+    main.querySelectorAll('[data-toggle]').forEach(function(el){
+      el.addEventListener('click', function(){
+        var id = el.getAttribute('data-toggle');
+        if(openEventIds.has(id)) openEventIds.delete(id); else openEventIds.add(id);
+        renderDayView();
+      });
+    });
+    main.querySelectorAll('[data-edit-ev]').forEach(function(el){
+      el.addEventListener('click', function(e){ e.stopPropagation(); openEventModal(day.id, el.getAttribute('data-edit-ev')); });
+    });
+    main.querySelectorAll('[data-del-ev]').forEach(function(el){
+      el.addEventListener('click', function(e){
+        e.stopPropagation();
+        var evId = el.getAttribute('data-del-ev');
+        day.events = day.events.filter(function(ev){ return ev.id !== evId; });
+        saveState(); renderDayView();
+      });
+    });
+    var addEventBtn = document.getElementById('addEventBtn');
+    if(addEventBtn) addEventBtn.addEventListener('click', function(){ openEventModal(day.id, null); });
+    var delDayBtn = document.getElementById('delDayBtn');
+    if(delDayBtn) delDayBtn.addEventListener('click', function(){ confirmDeleteDayId = day.id; renderDayView(); });
+    var yesBtn = document.getElementById('confirmDelYes');
+    if(yesBtn) yesBtn.addEventListener('click', function(){
+      var idx = state.days.findIndex(function(d){ return d.id === day.id; });
+      state.days.splice(idx,1);
+      confirmDeleteDayId = null;
+      if(state.activeDayIndex >= state.days.length) state.activeDayIndex = Math.max(0, state.days.length-1);
+      saveState(); renderAll();
+    });
+    var noBtn = document.getElementById('confirmDelNo');
+    if(noBtn) noBtn.addEventListener('click', function(){ confirmDeleteDayId = null; renderDayView(); });
+
+    positionTimelineDot(day);
+  }
+
+  var BRAND_MARK_HTML = '<div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></svg></div>';
+
+  function renderHeader(){
+    var brandWrap = document.getElementById('brandWrap');
+    if(state.editMode){
+      brandWrap.innerHTML = BRAND_MARK_HTML +
+        '<input class="brand-name-input" id="tripNameInput" value="'+esc(state.tripName)+'" placeholder="Nome del viaggio">';
+      var input = document.getElementById('tripNameInput');
+      input.addEventListener('input', function(){ state.tripName = input.value; });
+      input.addEventListener('blur', function(){ saveState(); });
+    } else {
+      brandWrap.innerHTML = BRAND_MARK_HTML +
+        '<span class="brand-name display" id="brandName">'+esc(state.tripName)+'</span>';
+    }
+
+    var editToggle = document.getElementById('editToggle');
+    editToggle.textContent = state.editMode ? 'Fatto' : 'Modifica';
+    editToggle.className = 'btn ' + (state.editMode ? 'btn-edit-on' : 'btn-ghost');
+  }
+
+  function renderAll(){
+    renderHeader();
+    renderScroller();
+    renderDayView();
+  }
+
+  function toggleEdit(){
+    state.editMode = !state.editMode;
+    confirmDeleteDayId = null;
+    saveState();
+    renderAll();
+  }
+
+  /* ---------------- Modals ---------------- */
+  function openGoogleMapsRoute(from, to){
+    var params = 'api=1&travelmode=transit';
+    if(from) params += '&origin=' + encodeURIComponent(from);
+    if(to) params += '&destination=' + encodeURIComponent(to);
+    var url = 'https://www.google.com/maps/dir/?' + params;
+    window.open(url, '_blank', 'noopener');
+  }
+
+  function closeModal(){ document.getElementById('modalRoot').innerHTML = ''; }
+
+  function openDayModal(){
+    var root = document.getElementById('modalRoot');
+    var today = new Date().toISOString().slice(0,10);
+    root.innerHTML =
+      '<div class="modal-overlay" id="overlay">' +
+        '<div class="modal">' +
+          '<h3 class="display">Crea Giornata</h3>' +
+          '<div class="field"><label>Data</label><input type="date" id="dayDate" value="'+today+'"></div>' +
+          '<div class="field"><label>Etichetta personalizzata (opzionale)</label><input type="text" id="dayLabel" placeholder="es. Giorno del ritorno"></div>' +
+          '<div class="modal-actions">' +
+            '<button class="btn btn-cancel" id="cancelDay">Annulla</button>' +
+            '<button class="btn btn-brass" id="saveDay">Crea Giornata</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    document.getElementById('cancelDay').addEventListener('click', closeModal);
+    document.getElementById('overlay').addEventListener('click', function(e){ if(e.target.id==='overlay') closeModal(); });
+    document.getElementById('saveDay').addEventListener('click', function(){
+      var date = document.getElementById('dayDate').value;
+      var label = document.getElementById('dayLabel').value.trim();
+      if(!date) return;
+      var newDay = { id: uid('d'), date: date, label: label || null, events: [] };
+      state.days.push(newDay);
+      state.days.sort(function(a,b){ return a.date.localeCompare(b.date); });
+      state.activeDayIndex = state.days.findIndex(function(d){ return d.id === newDay.id; });
+      saveState(); closeModal(); renderAll();
+    });
+  }
+
+  function openEventModal(dayId, eventId){
+    var day = state.days.find(function(d){ return d.id === dayId; });
+    var ev = eventId ? day.events.find(function(e){ return e.id === eventId; }) : null;
+    var root = document.getElementById('modalRoot');
+    var modeOptions = ['Nessuno','A piedi','Bus','Metro','Treno','Auto','Aereo','Traghetto'];
+    root.innerHTML =
+      '<div class="modal-overlay" id="overlay">' +
+        '<div class="modal">' +
+          '<h3 class="display">'+(ev?'Modifica Evento':'Aggiungi Evento')+'</h3>' +
+          '<div class="field-row">' +
+            '<div class="field"><label>Orario</label><input type="time" id="fTime" value="'+(ev?ev.time:'09:00')+'"></div>' +
+            '<div class="field" style="flex:2;"><label>Titolo</label><input type="text" id="fTitle" placeholder="es. Visita al museo" value="'+esc(ev?ev.title:'')+'"></div>' +
+          '</div>' +
+          '<div class="field"><label>Note & info utili</label><textarea id="fNotes" placeholder="Suggerimenti, orari di apertura, dettagli...">'+esc(ev?ev.notes:'')+'</textarea></div>' +
+          '<div class="field"><label>Stato biglietto</label><select id="fTicket">' +
+            '<option value="no"'+(ev&&ev.ticket==='no'?' selected':'')+'>No — non necessario</option>' +
+            '<option value="si"'+(ev&&ev.ticket==='si'?' selected':'')+'>Sì — da acquistare</option>' +
+            '<option value="in_possesso"'+(ev&&ev.ticket==='in_possesso'?' selected':'')+'>In possesso</option>' +
+          '</select></div>' +
+          '<div class="field-row">' +
+            '<div class="field" style="flex:2;"><label>Mezzo di trasporto</label><select id="fMode">' +
+              modeOptions.map(function(m){ return '<option value="'+m+'"'+(ev&&ev.mode===m?' selected':'')+'>'+m+'</option>'; }).join('') +
+            '</select></div>' +
+            '<div class="field"><label>Linea / N°</label><input type="text" id="fLine" placeholder="es. B, 64" value="'+esc(ev?ev.line:'')+'"></div>' +
+          '</div>' +
+          '<div class="field-row">' +
+            '<div class="field"><label>Partenza</label><input type="text" id="fFrom" placeholder="Stazione di partenza" value="'+esc(ev?ev.from:'')+'"></div>' +
+            '<div class="field"><label>Arrivo</label><input type="text" id="fTo" placeholder="Stazione di arrivo" value="'+esc(ev?ev.to:'')+'"></div>' +
+          '</div>' +
+          '<button type="button" class="btn btn-cancel" id="fMapsBtn" style="width:100%; justify-content:center; margin-bottom:14px;">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13 6-3m-6 3V7m6 10 5.447 2.724A1 1 0 0 0 21 18.618V7.618a1 1 0 0 0-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>' +
+            'Cerca il percorso su Google Maps' +
+          '</button>' +
+          '<div class="field"><label>Fermate intermedie</label><input type="text" id="fStops" placeholder="es. Termini, Cavour" value="'+esc(ev?ev.stops:'')+'"></div>' +
+          '<div class="modal-actions">' +
+            '<button class="btn btn-cancel" id="cancelEv">Annulla</button>' +
+            '<button class="btn btn-brass" id="saveEv">'+(ev?'Salva Modifiche':'Aggiungi Evento')+'</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    document.getElementById('cancelEv').addEventListener('click', closeModal);
+    document.getElementById('overlay').addEventListener('click', function(e){ if(e.target.id==='overlay') closeModal(); });
+    document.getElementById('fMapsBtn').addEventListener('click', function(){
+      var from = document.getElementById('fFrom').value.trim();
+      var to = document.getElementById('fTo').value.trim();
+      openGoogleMapsRoute(from, to);
+    });
+    document.getElementById('saveEv').addEventListener('click', function(){
+      var title = document.getElementById('fTitle').value.trim();
+      if(!title) return;
+      var data = {
+        time: document.getElementById('fTime').value || '00:00',
+        title: title,
+        notes: document.getElementById('fNotes').value.trim(),
+        ticket: document.getElementById('fTicket').value,
+        mode: document.getElementById('fMode').value,
+        line: document.getElementById('fLine').value.trim(),
+        from: document.getElementById('fFrom').value.trim(),
+        to: document.getElementById('fTo').value.trim(),
+        stops: document.getElementById('fStops').value.trim()
+      };
+      if(ev){
+        Object.assign(ev, data);
+      } else {
+        data.id = uid('e');
+        day.events.push(data);
+        openEventIds.add(data.id);
+      }
+      sortEvents(day);
+      saveState(); closeModal(); renderAll();
+    });
+  }
+
+  /* ---------------- PDF Export ---------------- */
+  function buildPrintPage(day){
+    var p = dayParts(day.date);
+    var evHtml = '';
+    if(day.events.length === 0){
+      evHtml = '<p class="print-empty">Nessun evento pianificato per questa giornata.</p>';
+    } else {
+      day.events.slice().sort(function(a,b){return a.time.localeCompare(b.time);}).forEach(function(ev){
+        evHtml += '<div class="print-ev">' +
+          '<div class="print-ev-top"><span class="print-ev-time">'+esc(ev.time)+'</span><span class="print-ev-title">'+esc(ev.title)+'</span></div>' +
+          (ev.notes ? '<p class="print-ev-notes">'+esc(ev.notes)+'</p>' : '') +
+          '<div class="print-ev-meta">' + ticketBadge(ev.ticket) + '</div>' +
+          transportVisualHTML(ev, false) +
+        '</div>';
+      });
+    }
+    return '<div class="print-page"><div class="print-head"><div><div class="trip">'+esc(state.tripName)+'</div><div class="day display">'+esc(dayLabel(day))+'</div></div></div>' + evHtml + '</div>';
+  }
+
+  function exportPDF(){
+    if(state.days.length === 0) return;
+    var label = document.getElementById('exportLabel');
+    var btn = document.getElementById('exportBtn');
+    label.textContent = 'Generazione...';
+    btn.disabled = true;
+
+    var printRoot = document.getElementById('printRoot');
+    var jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
+    if(!jsPDFCtor){ label.textContent='Esporta PDF'; btn.disabled=false; return; }
+    var pdf = new jsPDFCtor({ unit:'mm', format:'a4', orientation:'portrait' });
+
+    var idx = 0;
+    function next(){
+      if(idx >= state.days.length){
+        pdf.save((state.tripName||'itinerario').replace(/[^a-z0-9]+/gi,'_') + '.pdf');
+        printRoot.innerHTML = '';
+        label.textContent = 'Esporta PDF';
+        btn.disabled = false;
+        return;
+      }
+      var day = state.days[idx];
+      printRoot.innerHTML = buildPrintPage(day);
+      var pageEl = printRoot.querySelector('.print-page');
+      window.html2canvas(pageEl, { scale:2, useCORS:true, backgroundColor:'#ffffff' }).then(function(canvas){
+        var imgData = canvas.toDataURL('image/jpeg', 0.95);
+        if(idx > 0) pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+        idx++;
+        next();
+      }).catch(function(err){
+        console.error('PDF render error', err);
+        idx++;
+        next();
+      });
+    }
+    next();
+  }
+
+  /* ---------------- Init ---------------- */
+  document.getElementById('editToggle').addEventListener('click', toggleEdit);
+  document.getElementById('exportBtn').addEventListener('click', exportPDF);
+  document.getElementById('backupExportBtn').addEventListener('click', exportBackup);
+  document.getElementById('backupImportBtn').addEventListener('click', function(){
+    document.getElementById('backupFileInput').click();
+  });
+  document.getElementById('backupFileInput').addEventListener('change', function(e){
+    var file = e.target.files[0];
+    if(file) importBackup(file);
+    e.target.value = '';
+  });
+
+  loadState(function(){
+    renderAll();
+    setInterval(function(){
+      if(state.days.length === 0) return;
+      positionTimelineDot(state.days[state.activeDayIndex]);
+    }, 60000);
+  });
+})();
+</script>
+</body>
+</html>
