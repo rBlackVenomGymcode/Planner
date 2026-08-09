@@ -398,77 +398,6 @@
   /* ---------------- Helpers ---------------- */
   function pad(n){ return n<10 ? '0'+n : ''+n; }
 
-  function todayISO(){
-    var d = new Date();
-    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-  }
-
-  function timeToMinutes(t){
-    var parts = (t||'0:0').split(':');
-    return (parseInt(parts[0],10)||0)*60 + (parseInt(parts[1],10)||0);
-  }
-
-  function positionTimelineDot(day){
-    var wrap = document.getElementById('eventsWrap');
-    var rail = document.getElementById('timelineRail');
-    var dot = document.getElementById('timelineDot');
-    var chip = document.getElementById('timelineChip');
-    if(!wrap || !rail || !dot) return;
-
-    if(!day || day.date !== todayISO()){
-      rail.style.display = 'none';
-      dot.style.display = 'none';
-      return;
-    }
-
-    var rows = wrap.querySelectorAll('.ev[data-time]');
-    if(rows.length === 0){
-      rail.style.display = 'none';
-      dot.style.display = 'none';
-      return;
-    }
-
-    var points = [];
-    rows.forEach(function(row){
-      var rowEl = row.querySelector('.ev-row');
-      var centerY = row.offsetTop + (rowEl ? rowEl.offsetHeight/2 : 0);
-      points.push({ minutes: timeToMinutes(row.getAttribute('data-time')), y: centerY });
-    });
-
-    var now = new Date();
-    var nowMinutes = now.getHours()*60 + now.getMinutes();
-    var y;
-    if(points.length === 1){
-      y = points[0].y;
-    } else if(nowMinutes <= points[0].minutes){
-      y = points[0].y;
-    } else if(nowMinutes >= points[points.length-1].minutes){
-      y = points[points.length-1].y;
-    } else {
-      y = points[points.length-1].y;
-      for(var i=0;i<points.length-1;i++){
-        if(nowMinutes >= points[i].minutes && nowMinutes <= points[i+1].minutes){
-          var span = points[i+1].minutes - points[i].minutes;
-          var frac = span > 0 ? (nowMinutes - points[i].minutes)/span : 0;
-          y = points[i].y + frac*(points[i+1].y - points[i].y);
-          break;
-        }
-      }
-    }
-
-    if(points.length > 1){
-      rail.style.display = 'block';
-      rail.style.top = points[0].y + 'px';
-      rail.style.height = Math.max(0, points[points.length-1].y - points[0].y) + 'px';
-    } else {
-      rail.style.display = 'none';
-    }
-    dot.style.display = 'flex';
-    dot.style.top = y + 'px';
-    dot.style.transform = 'translateY(-50%)';
-    if(chip) chip.textContent = pad(now.getHours())+':'+pad(now.getMinutes());
-  }
-
   function dayParts(dateStr){
     var d = new Date(dateStr + 'T12:00:00');
     var wk = d.toLocaleDateString('it-IT', {weekday:'short'}).replace('.','');
@@ -636,8 +565,6 @@
         '<div class="day-pass-body">' +
           '<div class="day-pass-head"><span class="lbl">'+esc(dayLabel(day))+'</span><span class="seq">GIORNO '+(state.activeDayIndex+1)+'/'+state.days.length+'</span></div>' +
           '<div class="events-wrap" id="eventsWrap">' +
-            '<div class="timeline-rail" id="timelineRail"></div>' +
-            '<div class="timeline-dot" id="timelineDot"><span class="core"></span><span class="time-chip" id="timelineChip"></span></div>' +
             eventsHtml +
           '</div>' +
           addBtnHtml +
@@ -678,8 +605,6 @@
     });
     var noBtn = document.getElementById('confirmDelNo');
     if(noBtn) noBtn.addEventListener('click', function(){ confirmDeleteDayId = null; renderDayView(); });
-
-    positionTimelineDot(day);
   }
 
   var BRAND_MARK_HTML = '<div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></svg></div>';
@@ -901,10 +826,6 @@
 
   loadState(function(){
     renderAll();
-    setInterval(function(){
-      if(state.days.length === 0) return;
-      positionTimelineDot(state.days[state.activeDayIndex]);
-    }, 60000);
   });
 })();
 </script>
